@@ -1,0 +1,5 @@
+colorama
+termcolor
+flask
+flask-socketio
+flask-sock
