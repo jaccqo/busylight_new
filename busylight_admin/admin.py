@@ -182,3 +182,6 @@ def periodically_scan_net():
 if __name__ == '__main__':
     threading.Thread(target=periodically_scan_net, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=5001)
+
+
+# nuitka busylight_server.py --standalone --follow-imports --output-dir=build --assume-yes-for-downloads

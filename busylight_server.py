@@ -348,3 +348,4 @@ if __name__ == '__main__':
     load_config()  # Load configurations from the database
     threading.Thread(target=check_inactivity, daemon=True).start()
     app.run(host='0.0.0.0', port=5000)
+
