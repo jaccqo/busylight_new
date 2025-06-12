@@ -184,4 +184,4 @@ if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5001)
 
 
-# nuitka busylight_server.py --standalone --follow-imports --output-dir=build --assume-yes-for-downloads
+#nuitka admin.py --onefile --follow-imports --output-dir=build --assume-yes-for-downloads --windows-icon-from-ico=icon.ico

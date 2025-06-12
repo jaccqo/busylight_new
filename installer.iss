@@ -8,6 +8,7 @@ Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
+SetupIconFile=icon.ico
 
 [Files]
 ; Copy compiled Nuitka app folder

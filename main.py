@@ -4,17 +4,21 @@ from termcolor import colored
 
 class BusylightController:
     COLOR_MAP = {
-        "no call": (255, 0, 0),     # Red
-        "on call": (0, 255, 0),     # Green
-        "break": (255, 255, 0),     # Yellow
-        "invoice": (0, 0, 255),     # Blue
-        "opportunity": (0, 0, 255)  # Blue for Opportunity page
+        "no call": (255, 0, 0),       # Red
+        "on call": (0, 255, 0),       # Green
+        "break": (255, 255, 0),       # Yellow
+        "invoice": (128, 0, 128),     # Purple
+        "opportunity": (0, 0, 255),   # Blue
+        "incoming_call": (255, 105, 180),  # Pink
+        "call_dialing": (255, 165, 0)      # Orange
     }
 
     def __init__(self, base_url="http://localhost:8989"):
         self.base_url = base_url
 
     def send_request(self, action, params):
+        print(colored(f"Sending request to {self.base_url} with action: {action} and params: {params}", "blue"))
+     
         url = f"{self.base_url}?action={action}"
         response = requests.get(url, params=params)
         return response

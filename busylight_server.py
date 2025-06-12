@@ -276,6 +276,7 @@ def manage_user_activity(status, is_active):
         if is_active:
             last_call_time = datetime.datetime.now()  # Reset the last call time whenever an activity starts or stops
 
+
 @sock.route('/ws')
 def websocket(ws):
     global last_call_time
@@ -284,8 +285,8 @@ def websocket(ws):
         if data:
             try:
                 json_data = json.loads(data)
-                print(json_data)
-
+                print(colored(f"WebSocket received: {json_data}", "cyan"))
+                
                 status = json_data.get("status")
 
                 if status == "call_in_progress":
@@ -296,9 +297,16 @@ def websocket(ws):
                 elif status == "on_opportunity_page":
                     handle_on_opportunity_page(ws, status)
                     manage_user_activity(status, True)
+                
+                elif status == "incoming_call":
+                    handle_incoming_call(ws, status)
+                    manage_user_activity(status, True)
+                
+                elif status == "call_dialing":
+                    handle_call_dialing(ws, status)
+                    manage_user_activity(status, True)
 
                 elif status in ["break", "invoice"]:
-                    # Reset the last_call_time when user is actively setting a break or invoice
                     with lock:
                         last_call_time = datetime.datetime.now()
                     manage_countdown(status, ws)
@@ -308,36 +316,80 @@ def websocket(ws):
                     manage_user_activity(status, False)
                     
             except json.JSONDecodeError:
-                print("Received invalid JSON data")
+                print(colored("Received invalid JSON data", "red"))
         else:
             break
 
 def handle_on_call(ws, status):
     global last_call_time
-    countdown_event.set()  # Stop any active countdown
-    color = bs.parse_color(status)
-    light_resp = bs.send_request("light", color)
-    if light_resp.status_code == 200:
-        ws.send(f'Echo: {json.dumps({"status": "on call"})}')
-        with lock:
-            last_call_time = datetime.datetime.now()  # Reset the last call time for "on call"
-        print(colored(f"Busylight set to {status}", "green"))
-    else:
-        print(colored(f"Error setting busylight for {status}: {light_resp.status_code}", "red"))
-
+    countdown_event.set()
+    try:
+        color = bs.parse_color(status)
+        light_resp = bs.send_request("light", color)
+        if light_resp.status_code == 200:
+            ws.send(json.dumps({"type": "status_update", "status": "on call"}))
+            with lock:
+                last_call_time = datetime.datetime.now()
+            print(colored(f"Busylight set to {status} (green)", "green"))
+            log_event("on call", 0)
+        else:
+            print(colored(f"Error setting busylight for {status}: {light_resp.status_code}", "red"))
+    except ValueError as e:
+        print(colored(f"Error parsing color for {status}: {e}", "red"))
 
 def handle_on_opportunity_page(ws, status):
     global last_call_time
-    countdown_event.set()  # Stop any active countdown
-    color = bs.parse_color("opportunity")  # Assuming a specific color for Opportunity page
-    light_resp = bs.send_request("light", color)
-    if light_resp.status_code == 200:
-        ws.send(f'Echo: {json.dumps({"status": "on_opportunity_page"})}')
-        with lock:
-            last_call_time = datetime.datetime.now()  # Reset the last activity time
-        print(colored(f"Busylight set to {status}", "green"))
-    else:
-        print(colored(f"Error setting busylight for {status}: {light_resp.status_code}", "red"))
+    countdown_event.set()
+    try:
+        color = bs.parse_color("opportunity")
+        light_resp = bs.send_request("light", color)
+        if light_resp.status_code == 200:
+            ws.send(json.dumps({"type": "status_update", "status": "on_opportunity_page"}))
+            with lock:
+                last_call_time = datetime.datetime.now()
+            print(colored(f"Busylight set to {status} (blue)", "green"))
+            log_event("on_opportunity_page", 0)
+        else:
+            print(colored(f"Error setting busylight for {status}: {light_resp.status_code}", "red"))
+    except ValueError as e:
+        print(colored(f"Error parsing color for {status}: {e}", "red"))
+
+def handle_incoming_call(ws, status):
+    global last_call_time
+    countdown_event.set()
+    try:
+        color = bs.parse_color("incoming_call")
+        light_resp = bs.send_request("light", color)
+        sound_resp = bs.play_sound(1)  # Play sound for incoming call
+        if light_resp.status_code == 200 and sound_resp.status_code == 200:
+            ws.send(json.dumps({"type": "status_update", "status": "incoming_call"}))
+            with lock:
+                last_call_time = datetime.datetime.now()
+            print(colored(f"Busylight set to {status} (pink) with alert sound", "green"))
+            log_event("incoming_call", 0)
+        else:
+            print(colored(f"Error setting busylight or sound for {status}: Light={light_resp.status_code}, Sound={sound_resp.status_code}", "red"))
+    except ValueError as e:
+        print(colored(f"Error parsing color for {status}: {e}", "red"))
+
+def handle_call_dialing(ws, status):
+    global last_call_time
+    countdown_event.set()
+    try:
+        color = bs.parse_color("call_dialing")
+        light_resp = bs.send_request("light", color)
+        if light_resp.status_code == 200:
+            ws.send(json.dumps({"type": "status_update", "status": "call_dialing"}))
+            with lock:
+                last_call_time = datetime.datetime.now()
+            print(colored(f"Busylight set to {status} (orange)", "green"))
+            log_event("call_dialing", 0)
+        else:
+            print(colored(f"Error setting busylight for {status}: {light_resp.status_code}", "red"))
+    except ValueError as e:
+        print(colored(f"Error parsing color for {status}: {e}", "red"))
+
+
 
 @app.route('/')
 def index():
@@ -349,3 +401,5 @@ if __name__ == '__main__':
     threading.Thread(target=check_inactivity, daemon=True).start()
     app.run(host='0.0.0.0', port=5000)
 
+
+# nuitka busylight_server.py --standalone --follow-imports --output-dir=build --assume-yes-for-downloads --windows-icon-from-ico=icon.ico
