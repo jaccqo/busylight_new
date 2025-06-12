@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <title>Busylight Control Admin Interface</title>
+    <style>
+      body {
+        background-color: #f5f5f7;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      .container {
+        margin-top: 50px;
+      }
+      h1, h3 {
+        color: #1d1d1f;
+        font-weight: 600;
+      }
+      .btn-primary, .btn-success, .btn-warning, .btn-danger {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+      .btn-primary {
+        background-color: #0071e3;
+        border-color: #0071e3;
+      }
+      .btn-primary:hover {
+        background-color: #005bb5;
+        border-color: #005bb5;
+      }
+      .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+      }
+      .btn-success:hover {
+        background-color: #218838;
+        border-color: #218838;
+      }
+      .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+      }
+      .btn-warning:hover {
+        background-color: #e0a800;
+        border-color: #e0a800;
+      }
+      .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+      }
+      .btn-danger:hover {
+        background-color: #c82333;
+        border-color: #c82333;
+      }
+      .card {
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        border: none;
+        margin-top: 20px;
+      }
+      .card-title {
+        font-weight: 500;
+        color: #1d1d1f;
+      }
+      .card-text {
+        color: #6e6e73;
+      }
+      hr {
+        border-top: 1px solid #d2d2d7;
+      }
+      .form-control {
+        border-radius: 8px;
+        border: 1px solid #d2d2d7;
+        padding: 10px;
+        font-size: 16px;
+      }
+      .form-group label {
+        font-weight: 500;
+        color: #1d1d1f;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="d-flex justify-content-between align-items-center">
+        <h1>Admin Interface</h1>
+        <button class="btn btn-danger" onclick="logout()">Logout</button>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <button class="btn btn-primary mb-3" onclick="scanNetwork()">Scan Network</button>
+        </div>
+        <div class="col text-danger">
+          <span class="spinner-grow spinner-grow-sm" role="status" aria-hidden="true"></span>
+          <span class="spinner-grow spinner-grow-sm" role="status" aria-hidden="true"></span>
+          <span class="spinner-grow spinner-grow-sm" role="status" aria-hidden="true"></span>
+          Auto scanning network...
+        </div>
+      </div>
+      <hr>
+      <h3>Current Scan Progress</h3>
+      <div id="scan-progress" class="mb-3 text-muted"></div>
+      <hr>
+      <h3>Users</h3>
+      <div id="users" class="row"></div>
+      <hr>
+      <h3>Update Config for All Users</h3>
+      <form id="updateConfigForm" onsubmit="return updateConfigForAll()">
+        <div class="form-group">
+          <label for="duration">Duration (minutes):</label>
+          <input type="number" class="form-control" id="duration" name="duration" required>
+        </div>
+        <div class="form-group">
+          <label for="inactive_mins">Inactive Minutes (minutes):</label>
+          <input type="number" class="form-control" id="inactive_mins" name="inactive_mins" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Update Config for All</button>
+      </form>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      socket.on('scan_progress', function(data) {
+        const scanProgressDiv = document.getElementById('scan-progress');
+        scanProgressDiv.innerHTML = `Scanning IP: ${data.ip}`;
+      });
+
+      socket.on('scan_update', function(data) {
+        const usersDiv = document.getElementById('users');
+        const userCard = `
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">${data.username}</h5>
+                <p class="card-text">IP: ${data.ip}</p>
+                <button class="btn btn-success" onclick="generateReport('${data.ip}', '${data.username}')">Generate Report</button>
+                <button class="btn btn-warning" onclick="updateConfig('${data.ip}')">Update Config</button>
+              </div>
+            </div>
+          </div>`;
+        usersDiv.innerHTML += userCard;
+      });
+
+      function scanNetwork() {
+        fetch('/scan_network')
+          .then(response => response.json())
+          .then(data => {
+            alert('Network scan started.');
+          })
+          .catch(error => console.error('Error scanning network:', error));
+      }
+
+      function fetchUsers() {
+        fetch('/get_users')
+          .then(response => response.json())
+          .then(data => {
+            const usersDiv = document.getElementById('users');
+            usersDiv.innerHTML = '';
+            data.forEach((user, index) => {
+              if (index % 3 === 0) {
+                usersDiv.innerHTML += '<div class="w-100"></div>';  // New row every 3 cards
+              }
+              const userCard = `
+                <div class="col-md-4">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">${user.username}</h5>
+                      <p class="card-text">IP: ${user.ip}</p>
+                      <button class="btn btn-success" onclick="generateReport('${user.ip}', '${user.username}')">Generate Report</button>
+                      <button class="btn btn-warning" onclick="updateConfig('${user.ip}')">Update Config</button>
+                    </div>
+                  </div>
+                </div>`;
+              usersDiv.innerHTML += userCard;
+            });
+          })
+          .catch(error => console.error('Error fetching users:', error));
+      }
+
+      function generateReport(ip, username) {
+        fetch(`/generate_report?ip=${ip}`)
+          .then(response => response.blob())
+          .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `${username}_activity_report.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            alert('Report downloaded successfully.');
+          })
+          .catch(error => console.error('Error generating report:', error));
+      }
+
+      function updateConfig(ip) {
+        const duration = prompt('Enter duration (minutes):');
+        const inactive_mins = prompt('Enter inactive minutes (minutes):');
+        if (duration && inactive_mins) {
+          const data = { duration: parseInt(duration) * 60, inactive_mins: parseInt(inactive_mins) * 60 };
+          fetch(`/update_config?ip=${ip}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          })
+            .then(response => response.json())
+            .then(data => {
+              alert(data.message);
+            })
+            .catch(error => console.error('Error updating config:', error));
+        }
+      }
+
+      function updateConfigForAll() {
+        const form = document.getElementById('updateConfigForm');
+        const data = {
+          duration: parseInt(form.duration.value) * 60,
+          inactive_mins: parseInt(form.inactive_mins.value) * 60
+        };
+        fetch('/update_config_all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        })
+          .then(response => response.json())
+          .then(data => {
+            alert(data.message);
+          })
+          .catch(error => console.error('Error updating config for all:', error));
+        return false;
+      }
+
+      function logout() {
+        fetch('/logout')
+          .then(response => {
+            if (response.ok) {
+              window.location.href = '/login';
+            }
+          })
+          .catch(error => console.error('Error logging out:', error));
+      }
+
+      // Periodically fetch user information every 5 seconds
+      setInterval(fetchUsers, 5000);
+
+      // Initial fetch
+      fetchUsers();
+    </script>
+  </body>
+</html>
